@@ -1,0 +1,35 @@
+name: .NET CI/CD to IIS
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build-deploy:
+    runs-on: self-hosted  # Uses your Windows runner
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore NuGet Packages
+        run: dotnet restore MyApp.sln
+      - name: Backup Old Deployment (PowerShell)
+        shell: powershell
+        run: |
+          $DeployPath = "D:\webApp"
+          $BackupPath = "D:\webAppBackups"
+          $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+          $BackupFolder = "$BackupPath\MyApp_$Timestamp"
+          if (!(Test-Path $BackupPath)) { New-Item -Path $BackupPath -ItemType Directory }
+          Write-Host "Stopping IIS..."
+          iisreset /stop
+          if (Test-Path $DeployPath) {
+              Move-Item -Path $DeployPath -Destination $BackupFolder
+              Write-Host "Backup saved to: $BackupFolder"
+          }
+          New-Item -Path $DeployPath -ItemType Directory | Out-Null
+      - name: Build & Publish
+        run: dotnet publish "C:\Users\VIPIN\source\repos\WebApplication1\WebApplication1" -c Release -o $DeployPath
+      - name: Restart IIS
+        run: iisreset /start
